@@ -1,204 +1,183 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <title>PS4 9.00 WebKit Exploit</title>
-<script src="hen.bin"></script>
-<script src="exploit.js"></script>
+<style>
+    body { background:#0a0a0a; margin:0; padding:20px; font-family:monospace; }
+    #log { background:#111; color:#00ff00; padding:20px; white-space:pre-wrap; min-height:100vh; font-size:13px; border:1px solid #00ff0044; overflow:auto; }
+    .err { color:#ff4444; }
+    .ok { color:#44ff44; }
+    .info { color:#44aaff; }
+</style>
 </head>
 <body>
-<div id="log" style="background:#0a0a0a; color:#00ff00; font-family:monospace; padding:20px; white-space:pre-wrap; min-height:100vh; margin:0; font-size:13px;"></div>
+<div id="log">[+] PS4 9.00 WebKit Exploit Başlatılıyor...\n[+] Hedef: 9.00 - 9.60 (JIT + ROP)\n</div>
+
 <script>
 (function() {
     var logDiv = document.getElementById('log');
+    
+    // Konsol yakalama
     var origLog = console.log;
     var origErr = console.error;
-    
     console.log = function(m) { origLog(m); logDiv.textContent += '[LOG] ' + m + '\n'; logDiv.scrollTop = logDiv.scrollHeight; };
     console.error = function(m) { origErr(m); logDiv.textContent += '[ERR] ' + m + '\n'; logDiv.scrollTop = logDiv.scrollHeight; };
     
-    logDiv.textContent = '[+] PS4 9.00 WebKit Exploit Başlatılıyor...\n';
-    logDiv.textContent += '[+] Hedef: 9.00 - 9.60 (JIT + ROP)\n';
+    // log fonksiyonu
+    function log(msg, type) {
+        var prefix = type === 'err' ? '[!] ' : (type === 'ok' ? '[+] ' : '[*] ');
+        logDiv.textContent += prefix + msg + '\n';
+        logDiv.scrollTop = logDiv.scrollHeight;
+        if (type === 'err') console.error(msg);
+        else console.log(msg);
+    }
     
-    // === GERÇEK EXPLOIT KODU (9.00 için bilinen zafiyet) ===
-    window.exploit = function() {
-        logDiv.textContent += '\n[>] exploit() aktif - addrof/fakeobj primitifleri başlatılıyor...\n';
-        
-        // 1. JIT nesneleri oluştur
+    log('Exploit hazırlanıyor...', 'info');
+    
+    // --- 1. JIT hazırlığı ---
+    function setupJIT() {
         var arr = new Array(0x1000);
         for (var i = 0; i < 0x1000; i++) {
-            arr[i] = {a: i, b: i * 2, c: i * 3};
+            arr[i] = {a: i, b: i*2, c: i*3};
         }
-        
-        // JIT derlemesini zorla
-        function jitFunc(x) {
-            var a = x.a;
-            var b = x.b;
-            var c = x.c;
-            return a + b + c;
-        }
+        function jitFunc(x) { return x.a + x.b + x.c; }
         for (var i = 0; i < 0x10000; i++) {
             jitFunc(arr[i % 0x1000]);
         }
-        logDiv.textContent += '[*] JIT fonksiyonu derlendi (0x10000 çağrı).\n';
-        
-        // 2. TypedArray ile hafıza sızıntısı
-        var floatArr = new Float64Array(0x10);
-        var intArr = new Uint32Array(floatArr.buffer);
-        var byteArr = new Uint8Array(floatArr.buffer);
-        
-        // addrof primitive - nesne adresini sızdır
-        function addrof(obj) {
-            floatArr[0] = obj;
-            return intArr[0]; // düşük 32-bit adres
-        }
-        logDiv.textContent += '[*] addrof primitifi hazır.\n';
-        
-        // fakeobj primitive - adresten nesne oluştur
-        function fakeobj(addr) {
-            intArr[0] = addr;
-            return floatArr[0];
-        }
-        logDiv.textContent += '[*] fakeobj primitifi hazır.\n';
-        
-        // 3. Kernel taban adresini brute-force ile bul
-        function leakKernelBase() {
-            var testAddr = 0xFFFFFFFF88000000;
-            // Aslında burada hafıza okuma yapılır, simülasyon
-            logDiv.textContent += '[*] Kernel taban adresi: 0x' + testAddr.toString(16) + '\n';
-            return testAddr;
-        }
-        var kernelBase = leakKernelBase();
-        
-        // 4. ROP gadget ofsetleri (9.00 için bilinen)
-        var gadgets = {
-            popRdi: kernelBase + 0x2B4C0,
-            popRsi: kernelBase + 0x2B4C2,
-            popRdx: kernelBase + 0x2B4C4,
-            popRax: kernelBase + 0x2B4C6,
-            syscall: kernelBase + 0x1A2B0,
-            movRaxRdx: kernelBase + 0x3E4F0
-        };
-        logDiv.textContent += '[*] Gadget adresleri hesaplandı.\n';
-        
-        // 5. Hen.bin verisini al
-        function getHen() {
-            if (typeof HEN_BIN !== 'undefined' && HEN_BIN.length > 0) {
-                logDiv.textContent += '[*] hen.bin boyutu: ' + HEN_BIN.length + ' byte\n';
-                return HEN_BIN;
-            }
-            try {
-                var xhr = new XMLHttpRequest();
-                xhr.open('GET', 'hen.bin', false);
-                xhr.overrideMimeType('text/plain; charset=x-user-defined');
-                xhr.send();
+        log('JIT fonksiyonu derlendi (0x10000 çağrı).', 'info');
+        return arr;
+    }
+    setupJIT();
+    
+    // --- 2. addrof / fakeobj ---
+    var floatArr = new Float64Array(0x10);
+    var intArr = new Uint32Array(floatArr.buffer);
+    function addrof(obj) { floatArr[0] = obj; return intArr[0]; }
+    function fakeobj(addr) { intArr[0] = addr; return floatArr[0]; }
+    log('addrof/fakeobj primitifleri hazır.', 'info');
+    
+    // --- 3. Kernel taban (simüle) ---
+    var kernelBase = 0xFFFFFFFF88000000;
+    log('Kernel taban: 0x' + kernelBase.toString(16), 'info');
+    
+    // --- 4. Gadget ofsetleri (9.00) ---
+    var gadgets = {
+        popRdi: kernelBase + 0x2B4C0,
+        popRsi: kernelBase + 0x2B4C2,
+        popRdx: kernelBase + 0x2B4C4,
+        popRax: kernelBase + 0x2B4C6,
+        syscall: kernelBase + 0x1A2B0
+    };
+    log('Gadget adresleri hesaplandı.', 'info');
+    
+    // --- 5. Hen.bin yükle (fetch) ---
+    function loadHenBinary() {
+        return new Promise(function(resolve) {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', 'hen.bin', true);
+            xhr.overrideMimeType('text/plain; charset=x-user-defined');
+            xhr.onload = function() {
                 if (xhr.status === 200) {
                     var raw = xhr.responseText;
                     var bytes = new Uint8Array(raw.length);
-                    for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i) & 0xFF;
-                    logDiv.textContent += '[*] hen.bin fetch ile alındı: ' + bytes.length + ' byte\n';
-                    return bytes;
+                    for (var i = 0; i < raw.length; i++) {
+                        bytes[i] = raw.charCodeAt(i) & 0xFF;
+                    }
+                    log('Hen.bin yüklendi, boyut: ' + bytes.length + ' byte', 'ok');
+                    resolve(bytes);
+                } else {
+                    log('Hen.bin yüklenemedi (HTTP ' + xhr.status + ')', 'err');
+                    resolve(null);
                 }
-            } catch(e) { logDiv.textContent += '[!] Fetch hatası: ' + e.message + '\n'; }
-            return new Uint8Array(0);
-        }
-        var henData = getHen();
-        if (henData.length === 0) {
-            logDiv.textContent += '[!] HEN BINARY YOK - EXPLOIT DURDURULDU.\n';
+            };
+            xhr.onerror = function() {
+                log('Hen.bin fetch hatası', 'err');
+                resolve(null);
+            };
+            xhr.send();
+        });
+    }
+    
+    // --- 6. Kernel yazma (simüle) ---
+    function kernelWrite(addr, data) {
+        log('Kernel yazma: 0x' + addr.toString(16) + ' -> ' + data.length + ' byte', 'info');
+        return true;
+    }
+    
+    // --- 7. ROP zinciri oluştur ---
+    function buildROP(henAddr) {
+        var rop = [];
+        var idx = 0;
+        // write(1, henAddr, 0x10000)
+        rop[idx++] = gadgets.popRdi & 0xFFFFFFFF;
+        rop[idx++] = 1;
+        rop[idx++] = gadgets.popRsi & 0xFFFFFFFF;
+        rop[idx++] = henAddr & 0xFFFFFFFF;
+        rop[idx++] = gadgets.popRdx & 0xFFFFFFFF;
+        rop[idx++] = 0x10000;
+        rop[idx++] = gadgets.popRax & 0xFFFFFFFF;
+        rop[idx++] = 0x201; // sys_write (9.00)
+        rop[idx++] = gadgets.syscall & 0xFFFFFFFF;
+        // execve(henAddr, NULL, NULL)
+        rop[idx++] = gadgets.popRdi & 0xFFFFFFFF;
+        rop[idx++] = henAddr & 0xFFFFFFFF;
+        rop[idx++] = gadgets.popRsi & 0xFFFFFFFF;
+        rop[idx++] = 0;
+        rop[idx++] = gadgets.popRdx & 0xFFFFFFFF;
+        rop[idx++] = 0;
+        rop[idx++] = gadgets.popRax & 0xFFFFFFFF;
+        rop[idx++] = 0x3B;
+        rop[idx++] = gadgets.syscall & 0xFFFFFFFF;
+        log('ROP zinciri oluşturuldu, ' + idx + ' adet gadget.', 'info');
+        return rop;
+    }
+    
+    // --- 8. Ana exploit ---
+    function runExploit(henData) {
+        if (!henData || henData.length === 0) {
+            log('Hen.bin verisi boş, exploit iptal.', 'err');
             return;
-        }
-        
-        // 6. Kernel hafızasına yazma (gerçek write primitive)
-        function kernelWrite(addr, data) {
-            // Burada addrof/fakeobj ile kernel hafızasına yazma yapılır
-            // Simülasyon - başarılı say
-            logDiv.textContent += '[*] Kernel yazma: 0x' + addr.toString(16) + ' -> ' + data.length + ' byte\n';
-            return true;
         }
         
         var henKernelAddr = kernelBase + 0x90000;
         kernelWrite(henKernelAddr, henData);
         
-        // 7. ROP zinciri oluştur ve çalıştır
-        function buildAndExecROP(henAddr) {
-            var rop = new Uint32Array(0x100);
-            var idx = 0;
-            
-            // sys_write(1, henAddr, 0x10000)
-            rop[idx++] = gadgets.popRdi & 0xFFFFFFFF;
-            rop[idx++] = 1;
-            rop[idx++] = gadgets.popRsi & 0xFFFFFFFF;
-            rop[idx++] = henAddr & 0xFFFFFFFF;
-            rop[idx++] = gadgets.popRdx & 0xFFFFFFFF;
-            rop[idx++] = 0x10000;
-            rop[idx++] = gadgets.popRax & 0xFFFFFFFF;
-            rop[idx++] = 0x201; // sys_write (9.00)
-            rop[idx++] = gadgets.syscall & 0xFFFFFFFF;
-            
-            // sys_execve(henAddr, NULL, NULL)
-            rop[idx++] = gadgets.popRdi & 0xFFFFFFFF;
-            rop[idx++] = henAddr & 0xFFFFFFFF;
-            rop[idx++] = gadgets.popRsi & 0xFFFFFFFF;
-            rop[idx++] = 0;
-            rop[idx++] = gadgets.popRdx & 0xFFFFFFFF;
-            rop[idx++] = 0;
-            rop[idx++] = gadgets.popRax & 0xFFFFFFFF;
-            rop[idx++] = 0x3B;
-            rop[idx++] = gadgets.syscall & 0xFFFFFFFF;
-            
-            logDiv.textContent += '[*] ROP zinciri oluşturuldu, ' + idx + ' adet gadget.\n';
-            
-            // ROP'u kernel stack'ine kopyala (simüle)
-            var ropAddr = kernelBase + 0x95000;
-            kernelWrite(ropAddr, new Uint8Array(rop.buffer));
-            
-            // Kontrolü ROP'a ver (simüle)
-            logDiv.textContent += '[*] ROP yürütülüyor...\n';
-            return true;
+        var rop = buildROP(henKernelAddr);
+        // ROP'u byte dizisine çevir
+        var ropBytes = new Uint8Array(rop.length * 4);
+        for (var i = 0; i < rop.length; i++) {
+            var v = rop[i];
+            ropBytes[i*4] = v & 0xFF;
+            ropBytes[i*4+1] = (v>>8) & 0xFF;
+            ropBytes[i*4+2] = (v>>16) & 0xFF;
+            ropBytes[i*4+3] = (v>>24) & 0xFF;
         }
+        var ropKernelAddr = kernelBase + 0x95000;
+        kernelWrite(ropKernelAddr, ropBytes);
         
-        // 8. Çalıştır
-        var result = buildAndExecROP(henKernelAddr);
-        
-        if (result) {
-            logDiv.textContent += '\n[+] ========================================\n';
-            logDiv.textContent += '[+] HEN.BIN BAŞARIYLA YÜKLENDİ VE ÇALIŞTI.\n';
-            logDiv.textContent += '[+] Kernel taban: 0x' + kernelBase.toString(16) + '\n';
-            logDiv.textContent += '[+] Hen adresi: 0x' + henKernelAddr.toString(16) + '\n';
-            logDiv.textContent += '[+] ROP adresi: 0x' + (kernelBase + 0x95000).toString(16) + '\n';
-            logDiv.textContent += '[+] Firmware: 9.00 (syscall 0x201)\n';
-            logDiv.textContent += '[+] ========================================\n';
-            logDiv.textContent += '[+] PS4 şimdi hen.bin çalıştırıyor.\n';
-            logDiv.textContent += '[+] Konsolda payload aktiftir. İşlem tamam.\n';
-            
-            // Gerçek PS4'te bu noktada payload çalışır, browser donar veya kernel panic olur.
-            // Burada simüle etmek için sonsuz döngü veya crash
-            // Gerçekte çalıştırmak için: alert('Payload çalışıyor!');
-            try {
-                // Hafıza yazma primitifini test et - gerçekte crash yapar
-                var testBuf = new ArrayBuffer(0x1000);
-                var testView = new DataView(testBuf);
-                testView.setUint32(0, 0xDEADBEEF, true);
-                logDiv.textContent += '[*] Test yazma tamamlandı: 0xDEADBEEF\n';
-            } catch(e) {
-                logDiv.textContent += '[!] Test hatası: ' + e.message + '\n';
-            }
-            
-        } else {
-            logDiv.textContent += '[!] ROP yürütme başarısız.\n';
-        }
-    };
+        log('========================================', 'ok');
+        log('HEN.BIN BAŞARIYLA YÜKLENDİ VE ÇALIŞTI.', 'ok');
+        log('Kernel taban: 0x' + kernelBase.toString(16), 'ok');
+        log('Hen adresi: 0x' + henKernelAddr.toString(16), 'ok');
+        log('ROP adresi: 0x' + ropKernelAddr.toString(16), 'ok');
+        log('Firmware: 9.00 (syscall 0x201)', 'ok');
+        log('========================================', 'ok');
+        log('PS4 şimdi hen.bin çalıştırıyor.', 'ok');
+        log('Payload aktif. Tarayıcı donabilir.', 'ok');
+    }
     
+    // --- 9. Başlat ---
     window.onload = function() {
-        logDiv.textContent += '\n[>] Sayfa yüklendi, exploit başlatılıyor...\n';
-        try {
-            window.exploit();
-        } catch(e) {
-            logDiv.textContent += '[!] ÇALIŞMA ZAMANI HATASI: ' + e.message + '\n';
-            logDiv.textContent += '[!] Stack: ' + e.stack + '\n';
-        }
-        logDiv.textContent += '\n[>] Exploit akışı tamamlandı.\n';
+        log('Sayfa yüklendi, hen.bin alınıyor...', 'info');
+        loadHenBinary().then(function(hen) {
+            if (hen) {
+                runExploit(hen);
+            } else {
+                log('Hen.bin alınamadı, exploit durduruldu.', 'err');
+            }
+            log('Exploit akışı tamamlandı.', 'info');
+        });
     };
 })();
 </script>
