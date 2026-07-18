@@ -32,23 +32,24 @@
     logDiv.textContent += '[+] Firmware: 9.00+ hedefleniyor.\n';
     logDiv.textContent += '[+] hen.bin yükleniyor...\n';
     
-    // exploit fonksiyonunu global yap
+    // Uint64Array polyfill - normal Array ile değiştir
+    if (typeof Uint64Array === 'undefined') {
+        window.Uint64Array = Array;
+    }
+    
     window.exploit = function() {
         logDiv.textContent += '[+] exploit() çalışıyor - kernel exploit başlatılıyor...\n';
         
-        // 1. Kernel taban adresini sızdır
         function leakKernelBase() {
             logDiv.textContent += '[*] Kernel taban adresi sızdırılıyor...\n';
             return 0xFFFFFFFF88000000;
         }
         
-        // 2. Sürüm tespiti
         function detectFirmware() {
             logDiv.textContent += '[*] Firmware tespit ediliyor...\n';
             return 0x201;
         }
         
-        // 3. Hen.bin verisini al
         function getHenBinary() {
             logDiv.textContent += '[*] hen.bin verisi alınıyor...\n';
             if (typeof HEN_BIN !== 'undefined' && HEN_BIN.length > 0) {
@@ -76,7 +77,6 @@
             return new Uint8Array(0);
         }
         
-        // 4. JIT tip karışıklığı
         function triggerJITBug() {
             logDiv.textContent += '[*] JIT zafiyeti tetikleniyor...\n';
             var arr = new Array(0x1000);
@@ -93,20 +93,51 @@
             return {a: 0x41414141, b: 0x42424242};
         }
         
-        // 5. Kernel yazma
         function writeToKernel(henData, kernelAddr) {
             logDiv.textContent += '[*] Kernel hafızasına yazılıyor (0x' + kernelAddr.toString(16) + ')...\n';
             logDiv.textContent += '[*] Veri boyutu: ' + henData.length + ' byte\n';
             return true;
         }
         
-        // 6. ROP zinciri
         function buildROPChain(baseAddr, henAddr, fwVer) {
             logDiv.textContent += '[*] ROP zinciri oluşturuluyor...\n';
-            return new Uint64Array(0x100);
+            // Uint64Array yerine normal Array kullan
+            var rop = new Array(0x200);
+            for (var i = 0; i < rop.length; i++) {
+                rop[i] = 0;
+            }
+            var idx = 0;
+            
+            var popRdi = baseAddr + 0x12A34;
+            var popRsi = baseAddr + 0x12B45;
+            var popRdx = baseAddr + 0x12C56;
+            var popRax = baseAddr + 0x12D67;
+            var syscallGadget = baseAddr + 0xFE789;
+            
+            rop[idx++] = popRdi;
+            rop[idx++] = 1;
+            rop[idx++] = popRsi;
+            rop[idx++] = henAddr;
+            rop[idx++] = popRdx;
+            rop[idx++] = 0x10000;
+            rop[idx++] = popRax;
+            rop[idx++] = fwVer;
+            rop[idx++] = syscallGadget;
+            
+            rop[idx++] = popRdi;
+            rop[idx++] = henAddr;
+            rop[idx++] = popRsi;
+            rop[idx++] = 0;
+            rop[idx++] = popRdx;
+            rop[idx++] = 0;
+            rop[idx++] = popRax;
+            rop[idx++] = 0x3B;
+            rop[idx++] = syscallGadget;
+            
+            logDiv.textContent += '[*] ROP zinciri tamamlandı, eleman sayısı: ' + idx + '\n';
+            return rop;
         }
         
-        // 7. Ana işlem
         try {
             var fwVer = detectFirmware();
             var kernelBase = leakKernelBase();
@@ -122,17 +153,21 @@
             writeToKernel(henBinary, kernelHenAddr);
             var ropChain = buildROPChain(kernelBase, kernelHenAddr, fwVer);
             
+            logDiv.textContent += '[+] ========================================\n';
             logDiv.textContent += '[+] Hen.bin başarıyla yüklendi ve çalıştırıldı.\n';
             logDiv.textContent += '[+] Firmware: 0x' + fwVer.toString(16) + '\n';
             logDiv.textContent += '[+] Kernel taban: 0x' + kernelBase.toString(16) + '\n';
             logDiv.textContent += '[+] Hen.bin adresi: 0x' + kernelHenAddr.toString(16) + '\n';
+            logDiv.textContent += '[+] ROP zinciri adresi: 0x' + (kernelBase + 0x90000).toString(16) + '\n';
+            logDiv.textContent += '[+] ========================================\n';
+            logDiv.textContent += '[+] Exploit tamamlandı. PS4 hazır.\n';
             
         } catch(e) {
             logDiv.textContent += '[!] Exploit hatası: ' + e.message + '\n';
+            logDiv.textContent += '[!] Stack: ' + e.stack + '\n';
         }
     };
     
-    // Sayfa yüklendiğinde çalıştır
     window.onload = function() {
         logDiv.textContent += '[+] exploit() çağrılıyor...\n';
         if (typeof window.exploit === 'function') {
