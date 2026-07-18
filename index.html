@@ -5,17 +5,50 @@
 <meta charset="UTF-8">
 <title>PS4 Sandbox Escape - 9.00+</title>
 <script src="hen.bin"></script>
-<script src="script.js"></script>
+<script src="exploit.js"></script>
 </head>
 <body>
+<div id="log" style="background:#0a0a0a; color:#00ff00; font-family:monospace; padding:20px; white-space:pre-wrap; min-height:100vh; margin:0; font-size:14px;"></div>
 <script>
-window.onload = function() {
-    if (typeof exploit === 'function') {
-        exploit();
-    } else {
-        console.error("[!] exploit() fonksiyonu bulunamadı.");
-    }
-};
+(function() {
+    var logDiv = document.getElementById('log');
+    
+    // Console log yakalama
+    var originalLog = console.log;
+    var originalError = console.error;
+    
+    console.log = function(msg) {
+        originalLog.apply(console, arguments);
+        logDiv.textContent += '[LOG] ' + msg + '\n';
+        logDiv.scrollTop = logDiv.scrollHeight;
+    };
+    
+    console.error = function(msg) {
+        originalError.apply(console, arguments);
+        logDiv.textContent += '[ERR] ' + msg + '\n';
+        logDiv.scrollTop = logDiv.scrollHeight;
+    };
+    
+    logDiv.textContent = '[+] PS4 Sandbox Escape başlatılıyor...\n';
+    logDiv.textContent += '[+] Firmware: 9.00+ hedefleniyor.\n';
+    logDiv.textContent += '[+] hen.bin yükleniyor...\n';
+    
+    // Sayfa yüklendiğinde exploit çalıştır
+    window.onload = function() {
+        logDiv.textContent += '[+] exploit() çağrılıyor...\n';
+        if (typeof exploit === 'function') {
+            try {
+                exploit();
+                logDiv.textContent += '[+] exploit() tamamlandı.\n';
+            } catch(e) {
+                logDiv.textContent += '[!] Hata: ' + e.message + '\n';
+                console.error(e);
+            }
+        } else {
+            logDiv.textContent += '[!] exploit() fonksiyonu bulunamadı.\n';
+        }
+    };
+})();
 </script>
 </body>
 </html>
