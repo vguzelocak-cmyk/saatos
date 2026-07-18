@@ -1,98 +1,21 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
-<title>PS4 Sandbox Escape - Hen.bin Loader</title>
+<title>PS4 Sandbox Escape - 9.00+</title>
+<script src="hen.js"></script>
+<script src="script.js"></script>
 </head>
 <body>
 <script>
-// PS4 Sandbox Escape - WebKit JS Payload ile Hen.bin yükleme
-// Sürüm: 9.00 ve altı için
-
-(function() {
-    // 1. Hafıza sızıntısı ve taban adres tespiti
-    function getBaseAddress() {
-        let leak = new ArrayBuffer(0x1000);
-        let dv = new DataView(leak);
-        // PS4 WebKit işlem taban adresi (örnek)
-        return 0x8000000000;
-    }
-
-    // 2. ROP zinciri oluştur - Hen.bin yükleme için
-    function buildROPChain(baseAddr, henBuffer) {
-        let rop = new Uint64Array(0x100);
-        let idx = 0;
-        let popRax = baseAddr + 0x12345;
-        let movRaxRdx = baseAddr + 0x67890;
-        let syscallGadget = baseAddr + 0xABCDF;
-        let henAddr = henBuffer.byteOffset + 0x1000;
-        
-        rop[idx++] = popRax;
-        rop[idx++] = 0x1; // sys_write
-        rop[idx++] = syscallGadget;
-        rop[idx++] = popRax;
-        rop[idx++] = 0x3B; // sys_execve
-        rop[idx++] = syscallGadget;
-        return rop;
-    }
-
-    // 3. Hen.bin payload - Base64 kodlu gerçek binary
-    function loadHenBinary() {
-        // Gerçek hen.bin içeriği (placeholder - değiştir)
-        let henBase64 = "SUVIRVJUVFMgQ09ERSAtIEhFTi5CSU4gQklOQVJZIERBVEEgQlVJTEQ9";
-        let henRaw = atob(henBase64);
-        let henArray = new Uint8Array(henRaw.length);
-        for (let i = 0; i < henRaw.length; i++) {
-            henArray[i] = henRaw.charCodeAt(i) & 0xFF;
-        }
-        return henArray;
-    }
-
-    // 4. Tip karışıklığı ile sandbox kaçışı
-    function triggerTypeConfusion() {
-        let arr = [1.1, 2.2, 3.3];
-        for (let i = 0; i < 0x1000; i++) {
-            arr[i] = i * 1.1;
-        }
-        let fakeArray = new Float64Array(0x10);
-        return fakeArray;
-    }
-
-    // 5. Kernel hafızasına yazma - Hen.bin yerleştir
-    function writeToKernel(henData, kernelAddr) {
-        let view = new Uint8Array(henData.buffer);
-        for (let i = 0; i < view.length; i++) {
-            // Hafıza yazma primitifi (gerçekte ROP ile)
-            let ptr = kernelAddr + i;
-            view[i] = 0x90; // NOP - gerçek hen.bin yazılacak
-        }
-        return true;
-    }
-
-    // 6. Hen.bin çalıştırma - syscall ile exec
-    function executeHen(henAddr) {
-        let ropChain = buildROPChain(getBaseAddress(), henAddr);
-        let stackPtr = 0x7FFFFFFF0000;
-        let ropView = new Uint8Array(ropChain.buffer);
-        // ROP yığına yazılır ve çalıştırılır
-        console.log("[+] Hen.bin çalıştırılıyor...");
-    }
-
-    // 7. Ana exploit fonksiyonu
-    function exploit() {
-        let memPrim = triggerTypeConfusion();
-        let henBinary = loadHenBinary();
-        let kernelHenAddr = 0xFFFFFFFF88000000; // kernel .text
-        writeToKernel(henBinary, kernelHenAddr);
-        executeHen(kernelHenAddr);
-        document.body.innerHTML = "<pre>[+] Hen.bin başarıyla yüklendi ve çalıştı.</pre>";
-    }
-
-    // 8. Çalıştırma tetikleyicisi - sayfa yüklendiğinde
-    window.onload = function() {
+window.onload = function() {
+    if (typeof exploit === 'function') {
         exploit();
-    };
-})();
+    } else {
+        console.error("[!] exploit() fonksiyonu bulunamadı.");
+    }
+};
 </script>
 </body>
 </html>
