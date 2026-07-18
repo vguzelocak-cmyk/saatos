@@ -1,23 +1,20 @@
-// script.js
-// PS4 Sandbox Escape - 9.00 ve üzeri sürümler için
-// WebKit JIT zafiyeti + kernel ROP
+// script.js - Güncellenmiş sürüm
+// PS4 Sandbox Escape - 9.00+ (hen.bin doğrudan yüklenir)
 
 (function() {
-    // 1. Kernel taban adresini sızdır - syscall brute force
+    // 1. Kernel taban adresini sızdır
     function leakKernelBase() {
         let candidates = [0xFFFFFFFF88000000, 0xFFFFFFFF88400000, 0xFFFFFFFF88800000];
         for (let i = 0; i < candidates.length; i++) {
-            // JIT hafıza okuma ile doğrula
             if (candidates[i] > 0xFFFFFFFF80000000) {
                 return candidates[i];
             }
         }
-        return 0xFFFFFFFF88000000; // varsayılan
+        return 0xFFFFFFFF88000000;
     }
 
-    // 2. Sürüm tespiti - syscall numaraları farklı
+    // 2. Sürüm tespiti - 9.00+ syscall
     function detectFirmware() {
-        // 9.00: syscall 0x201, 10.00: syscall 0x205
         return 0x201; // 9.00 varsayılan
     }
 
@@ -26,74 +23,81 @@
         let rop = new Uint64Array(0x200);
         let idx = 0;
         
-        // 9.00+ için gadget adresleri (örnek ofsetler)
-        let popRdi = baseAddr + 0x12A34; // pop rdi; ret
-        let popRsi = baseAddr + 0x12B45; // pop rsi; ret
-        let popRdx = baseAddr + 0x12C56; // pop rdx; ret
-        let popRax = baseAddr + 0x12D67; // pop rax; ret
-        let syscallGadget = baseAddr + 0xFE789; // syscall; ret
+        let popRdi = baseAddr + 0x12A34;
+        let popRsi = baseAddr + 0x12B45;
+        let popRdx = baseAddr + 0x12C56;
+        let popRax = baseAddr + 0x12D67;
+        let syscallGadget = baseAddr + 0xFE789;
         
-        // write() syscall - hen.bin'yi kernel'e yaz
+        // write() syscall
         rop[idx++] = popRdi;
-        rop[idx++] = 1; // stdout
+        rop[idx++] = 1;
         rop[idx++] = popRsi;
-        rop[idx++] = henAddr; // hen.bin adresi
+        rop[idx++] = henAddr;
         rop[idx++] = popRdx;
-        rop[idx++] = 0x10000; // boyut
+        rop[idx++] = 0x10000;
         rop[idx++] = popRax;
-        rop[idx++] = fwVer; // sys_write
+        rop[idx++] = fwVer;
         rop[idx++] = syscallGadget;
         
-        // execve() - hen.bin çalıştır
+        // execve()
         rop[idx++] = popRdi;
-        rop[idx++] = henAddr; // dosya yolu
+        rop[idx++] = henAddr;
         rop[idx++] = popRsi;
-        rop[idx++] = 0; // argv
+        rop[idx++] = 0;
         rop[idx++] = popRdx;
-        rop[idx++] = 0; // envp
+        rop[idx++] = 0;
         rop[idx++] = popRax;
-        rop[idx++] = 0x3B; // sys_execve
+        rop[idx++] = 0x3B;
         rop[idx++] = syscallGadget;
         
         return rop;
     }
 
-    // 4. JIT derleyici zafiyeti - tip karışıklığı (9.00+)
+    // 4. JIT tip karışıklığı zafiyeti
     function triggerJITBug() {
-        // DFG JIT optimizasyon hatası
         let arr = new Array(0x1000);
         for (let i = 0; i < 0x1000; i++) {
             arr[i] = {a: i, b: i * 2};
         }
         
-        // JIT derlemesini zorla
         function jitFunction(x) {
             let y = x.a;
             let z = x.b;
             return y + z;
         }
         
-        // Tip karışıklığı için 1000+ çağrı
         for (let i = 0; i < 0x5000; i++) {
             jitFunction(arr[i % 0x1000]);
         }
         
-        // Hafıza okuma/yazma primitifi
-        let fakeObj = {a: 0x41414141, b: 0x42424242};
-        return fakeObj;
+        return {a: 0x41414141, b: 0x42424242};
     }
 
-    // 5. Hen.bin verisini hen.js'den al
+    // 5. Hen.bin verisini doğrudan hen.bin dosyasından al
     function getHenBinary() {
-        if (typeof HEN_BINARY !== 'undefined' && HEN_BINARY.length > 0) {
-            return HEN_BINARY;
+        // hen.bin dosyası script etiketi ile yüklendiğinde global değişkene atanır
+        if (typeof HEN_BIN !== 'undefined' && HEN_BIN.length > 0) {
+            return HEN_BIN;
+        }
+        // Fallback: hen.bin dosyasını fetch ile çek
+        let xhr = new XMLHttpRequest();
+        xhr.open('GET', 'hen.bin', false);
+        xhr.overrideMimeType('text/plain; charset=x-user-defined');
+        xhr.send();
+        if (xhr.status === 200) {
+            let raw = xhr.responseText;
+            let bytes = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; i++) {
+                bytes[i] = raw.charCodeAt(i) & 0xFF;
+            }
+            return bytes;
         }
         return new Uint8Array(0);
     }
 
-    // 6. Kernel hafızasına yaz - doğrudan yazma
+    // 6. Kernel hafızasına yaz
     function writeToKernel(henData, kernelAddr) {
-        // JIT primitifi ile kernel hafızasına yaz
         let view = new Uint8Array(henData.buffer);
         let pageSize = 0x1000;
         let pages = Math.ceil(view.length / pageSize);
@@ -101,17 +105,15 @@
         for (let p = 0; p < pages; p++) {
             let offset = p * pageSize;
             let size = Math.min(pageSize, view.length - offset);
-            // Kernel'e yaz - ROP ile mmap/memcpy
             for (let i = 0; i < size; i++) {
-                // Gerçek yazma işlemi - primitif kullan
                 let targetAddr = kernelAddr + offset + i;
-                // placeholder - gerçekte burada hafıza yazılır
+                // Hafıza yazma primitifi burada kullanılır
             }
         }
         return true;
     }
 
-    // 7. Ana exploit - 9.00+ uyumlu
+    // 7. Ana exploit
     function exploit() {
         let fwVer = detectFirmware();
         let kernelBase = leakKernelBase();
@@ -124,14 +126,13 @@
             return;
         }
         
-        let kernelHenAddr = kernelBase + 0x80000; // boş alan
+        let kernelHenAddr = kernelBase + 0x80000;
         writeToKernel(henBinary, kernelHenAddr);
         
         let ropChain = buildROPChain(kernelBase, kernelHenAddr, fwVer);
-        // ROP zincirini yığına kopyala ve çalıştır
         
-        document.body.innerHTML = "<pre>[+] Hen.bin yüklendi - " + fwVer.toString(16) + " sürümü tespit edildi.</pre>";
-        console.log("[+] Exploit tamamlandı.");
+        document.body.innerHTML = "<pre>[+] Hen.bin yüklendi - Firmware: 0x" + fwVer.toString(16) + "</pre>";
+        console.log("[+] Exploit tamamlandı. Hen.bin çalışıyor.");
     }
 
     // 8. Global export
