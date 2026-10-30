@@ -1,146 +1,263 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="tr">
 <head>
-<meta charset="UTF-8">
-<title>PS4 9.00 WebKit Exploit</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SaatOS — Zamanın ötesinde</title>
+  <meta name="description" content="SaatOS: hızlı, akıllı ve güvenli yeni nesil işletim sistemi.">
+  <meta name="theme-color" content="#000308">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="preload" as="image" href="assets/hero.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<script>
-(function() {
-    // ============================================================
-    // PS4 9.00 WebKit JIT exploit - addrof/fakeobj + ROP
-    // hen.bin yükleyip kernel'de çalıştırır.
-    // ============================================================
+  <!-- Açılış animasyonu -->
+  <div class="intro" id="intro" aria-hidden="true">
+    <img src="assets/logo.png" alt="" class="intro-logo">
+    <div class="dots"><span></span><span></span><span></span><span></span><span></span></div>
+  </div>
 
-    // 1. JIT fonksiyonu ve tip karışıklığı için hazırlık
-    var arr = new Array(0x1000);
-    for (var i = 0; i < 0x1000; i++) {
-        arr[i] = {a: i, b: i*2, c: i*3};
-    }
-    function jitFunc(x) {
-        return x.a + x.b + x.c;
-    }
-    for (var i = 0; i < 0x50000; i++) {
-        jitFunc(arr[i % 0x1000]);
-    }
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a href="#top" class="brand" aria-label="SaatOS ana sayfa">
+        <img src="assets/logo.png" alt="" width="22" height="22">
+        <span>Saat<b>OS</b></span>
+      </a>
+      <nav class="nav-links" id="navLinks">
+        <a href="#overview">Genel Bakış</a>
+        <a href="#features">Özellikler</a>
+        <a href="#performance">Performans</a>
+        <a href="#design">Tasarım</a>
+        <a href="#security">Güvenlik</a>
+      </nav>
+      <a href="#download" class="nav-cta">İndir</a>
+      <button class="nav-toggle" id="navToggle" aria-label="Menüyü aç" aria-expanded="false">
+        <span></span><span></span>
+      </button>
+    </div>
+  </header>
 
-    // 2. addrof / fakeobj primitifleri (Float64Array + Uint32Array)
-    var floatArr = new Float64Array(0x10);
-    var uintArr = new Uint32Array(floatArr.buffer);
-    function addrof(obj) {
-        floatArr[0] = obj;
-        return uintArr[0];
-    }
-    function fakeobj(addr) {
-        uintArr[0] = addr;
-        return floatArr[0];
-    }
+  <main id="top">
+    <!-- HERO -->
+    <section class="hero" id="hero">
+      <div class="hero-bg" id="heroBg"></div>
+      <canvas class="stars" id="stars"></canvas>
+      <div class="hero-content" id="heroContent">
+        <p class="eyebrow reveal-up" style="--d:.1s">Yeni nesil işletim sistemi</p>
+        <div class="hero-logo-wrap reveal-up" style="--d:.2s">
+          <img src="assets/logo.png" alt="SaatOS logosu" class="hero-logo" id="heroLogo">
+          <div class="hero-glow"></div>
+        </div>
+        <h1 class="hero-title reveal-up" style="--d:.35s"><span class="t-light">Saat</span><span class="t-blue">OS</span></h1>
+        <p class="hero-sub reveal-up" style="--d:.5s">Zamanın ötesinde. Hızın, zekânın ve sadeliğin buluştuğu yer.</p>
+        <div class="hero-actions reveal-up" style="--d:.65s">
+          <a href="#download" class="btn btn-primary">Şimdi İndir</a>
+          <a href="#overview" class="btn btn-link">Daha fazla bilgi <i>›</i></a>
+        </div>
+      </div>
+      <div class="scroll-hint" id="scrollHint"><span></span></div>
+      <div class="horizon"></div>
+    </section>
 
-    // 3. Test nesnesi ile adres sızdırma
-    var test = {a: 0x41414141, b: 0x42424242};
-    var testAddr = addrof(test);
-    // testAddr artık test nesnesinin düşük 32-bit adresidir.
+    <!-- PINNED: Hızlı / Akıllı / Güvenli -->
+    <section class="pin" id="overview" data-pin>
+      <div class="pin-sticky">
+        <div class="orbit" id="orbit">
+          <div class="ring r1"></div>
+          <div class="ring r2"></div>
+          <div class="ring r3"></div>
+          <img src="assets/logo.png" alt="" class="orbit-logo" id="orbitLogo">
+        </div>
+        <div class="pin-words">
+          <h2 class="pin-word" data-range="0,0.33">Hızlı.</h2>
+          <h2 class="pin-word" data-range="0.33,0.66">Akıllı.</h2>
+          <h2 class="pin-word" data-range="0.66,1.01">Güvenli.</h2>
+        </div>
+        <div class="pin-progress"><span id="pinBar"></span></div>
+      </div>
+    </section>
 
-    // 4. Kernel taban adresini sızdırmak için adres aralığını tara
-    function leakKernelBase() {
-        // Bilinen PS4 9.00 kernel .text başlangıcı
-        var base = 0xFFFFFFFF88000000;
-        // Burada gerçekte addrof ile bir kernel nesnesi alınır,
-        // fakat bu örnekte sabit kullanıyoruz.
-        return base;
-    }
-    var kernelBase = leakKernelBase();
+    <!-- KELİME KELİME AÇILAN METİN -->
+    <section class="statement">
+      <p class="scrub-text" id="scrubText">SaatOS, her saniyeyi değerli kılmak için tasarlandı. Anında açılan uygulamalar, sizi tanıyan bir arayüz ve verilerinizi yalnızca size ait tutan bir mimari. Hepsi tek bir sistemde, kusursuz bir uyum içinde.</p>
+    </section>
 
-    // 5. Gadget ofsetleri (9.00 için)
-    var popRdi = kernelBase + 0x2B4C0;
-    var popRsi = kernelBase + 0x2B4C2;
-    var popRdx = kernelBase + 0x2B4C4;
-    var popRax = kernelBase + 0x2B4C6;
-    var syscall = kernelBase + 0x1A2B0;
+    <!-- ÖZELLİKLER BENTO -->
+    <section class="features" id="features">
+      <div class="section-head reveal">
+        <p class="eyebrow">Özellikler</p>
+        <h2>Her detay,<br><span class="grad">bir amaç için.</span></h2>
+      </div>
+      <div class="bento">
+        <article class="card card-lg reveal" data-tilt>
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+          </div>
+          <h3>Işık hızında açılış</h3>
+          <p>Optimize edilmiş çekirdek sayesinde sistem, siz göz kırpmadan hazır olur.</p>
+          <div class="speed-lines"><i></i><i></i><i></i><i></i><i></i></div>
+        </article>
+        <article class="card reveal" data-tilt style="--d:.08s">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          </div>
+          <h3>Zaman odaklı</h3>
+          <p>Günlük ritminize uyum sağlayan akıllı odak modları.</p>
+        </article>
+        <article class="card reveal" data-tilt style="--d:.16s">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-6 6c0 2.2 1.2 3.6 2.4 4.8.8.8 1.1 1.6 1.1 2.7V18h5v-1.5c0-1.1.3-1.9 1.1-2.7C16.8 12.6 18 11.2 18 9a6 6 0 0 0-6-6z"/><path d="M10 21h4"/></svg>
+          </div>
+          <h3>Cihaz üstü zekâ</h3>
+          <p>Öneriler, arama ve otomasyonlar — tamamen cihazınızda çalışır.</p>
+        </article>
+        <article class="card reveal" data-tilt style="--d:.08s">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          </div>
+          <h3>Her ekranda bir</h3>
+          <p>Telefondan masaüstüne, tek ve akıcı bir deneyim.</p>
+        </article>
+        <article class="card card-wide reveal" data-tilt style="--d:.16s">
+          <div class="card-icon">
+            <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3"/><path d="M18 3v4h-4M6 21v-4h4"/></svg>
+          </div>
+          <h3>Kesintisiz senkronizasyon</h3>
+          <p>Dosyalarınız, ayarlarınız ve bildirimleriniz tüm cihazlarınızda anında güncel.</p>
+          <div class="sync-dots"><span></span><span></span><span></span><span></span><span></span></div>
+        </article>
+      </div>
+    </section>
 
-    // 6. Hen.bin verisini al (fetch ile, sync)
-    function loadHen() {
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', 'hen.bin', false);
-        xhr.overrideMimeType('text/plain; charset=x-user-defined');
-        xhr.send();
-        if (xhr.status === 200) {
-            var raw = xhr.responseText;
-            var bytes = new Uint8Array(raw.length);
-            for (var i = 0; i < raw.length; i++) {
-                bytes[i] = raw.charCodeAt(i) & 0xFF;
-            }
-            return bytes;
-        }
-        return new Uint8Array(0);
-    }
-    var henData = loadHen();
-    if (henData.length === 0) {
-        // Hata - hen.bin yok, bu durumda exploit devam etmez
-        throw new Error('hen.bin yüklenemedi');
-    }
+    <!-- PERFORMANS -->
+    <section class="performance" id="performance">
+      <div class="section-head reveal">
+        <p class="eyebrow">Performans</p>
+        <h2>Rakamlar<br><span class="grad">kendini anlatıyor.</span></h2>
+      </div>
+      <div class="stats">
+        <div class="stat reveal">
+          <div class="stat-num"><span data-count="2.4" data-decimals="1">0</span><small>sn</small></div>
+          <p>Soğuk açılış süresi</p>
+          <div class="stat-bar"><i style="--w:88%"></i></div>
+        </div>
+        <div class="stat reveal" style="--d:.1s">
+          <div class="stat-num"><span data-count="40">0</span><small>%</small></div>
+          <p>Daha az enerji tüketimi</p>
+          <div class="stat-bar"><i style="--w:40%"></i></div>
+        </div>
+        <div class="stat reveal" style="--d:.2s">
+          <div class="stat-num"><span data-count="120">0</span><small>Hz</small></div>
+          <p>Akıcı arayüz yenilemesi</p>
+          <div class="stat-bar"><i style="--w:100%"></i></div>
+        </div>
+        <div class="stat reveal" style="--d:.3s">
+          <div class="stat-num"><span data-count="3">0</span><small>x</small></div>
+          <p>Daha hızlı uygulama başlatma</p>
+          <div class="stat-bar"><i style="--w:75%"></i></div>
+        </div>
+      </div>
+    </section>
 
-    // 7. Kernel hafızasına yazma - out-of-bounds yazma ile
-    function kernelWrite(addr, data) {
-        // Gerçekte burada addrof ile elde edilen bir ArrayBuffer üzerinden
-        // hafıza yazma primitifi kullanılır. Bu örnekte doğrudan Uint8Array
-        // ile yazma simüle edilmiyor, ama PS4'te çalışan exploit'ler
-        // bu yöntemi kullanır.
-        // Biz burada veriyi doğrudan hedef adrese yazmak için
-        // fakeobj ile bir ArrayBuffer oluşturup onun üzerinden yazacağız.
-        // Gerçek çalışma için aşağıdaki gibi bir yaklaşım kullanılır.
-        var buf = new ArrayBuffer(data.length);
-        var view = new Uint8Array(buf);
-        view.set(data);
-        // Burada buf'ın adresini alıp kernel adresine kopyalamak gerekir.
-        // Bu örnekte sadece kopyalandığını varsayıyoruz.
-        // Gerçek exploit'ler memcpy ile yapar.
-        return true;
-    }
+    <!-- YATAY KAYAN TASARIM GALERİSİ -->
+    <section class="hscroll" id="design" data-pin>
+      <div class="hscroll-sticky">
+        <div class="hscroll-head">
+          <p class="eyebrow">Tasarım</p>
+          <h2>Göze hoş gelen<br><span class="grad">her an.</span></h2>
+        </div>
+        <div class="hscroll-track" id="hTrack">
+          <div class="panel p1">
+            <div class="mock">
+              <div class="mock-bar"><i></i><i></i><i></i></div>
+              <div class="mock-clock" id="liveClock">00:00</div>
+              <div class="mock-date" id="liveDate"></div>
+              <div class="mock-widgets"><span></span><span></span><span></span></div>
+            </div>
+            <h3>Kilit ekranı</h3>
+            <p>Canlı saat, akıllı widget'lar ve tek bakışta tüm gününüz.</p>
+          </div>
+          <div class="panel p2">
+            <div class="mock">
+              <div class="mock-bar"><i></i><i></i><i></i></div>
+              <div class="mock-grid"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+            </div>
+            <h3>Uygulama alanı</h3>
+            <p>Cam efektli katmanlar ve fiziğe dayalı animasyonlar.</p>
+          </div>
+          <div class="panel p3">
+            <div class="mock">
+              <div class="mock-bar"><i></i><i></i><i></i></div>
+              <div class="mock-wave"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+            </div>
+            <h3>Kontrol merkezi</h3>
+            <p>Tüm ayarlar parmaklarınızın ucunda, bir kaydırma uzağınızda.</p>
+          </div>
+          <div class="panel p4">
+            <div class="mock">
+              <div class="mock-bar"><i></i><i></i><i></i></div>
+              <div class="mock-ring"><img src="assets/logo.png" alt=""></div>
+            </div>
+            <h3>Karanlık mod</h3>
+            <p>Gece için tasarlanmış, gözü yormayan derin tonlar.</p>
+          </div>
+        </div>
+      </div>
+    </section>
 
-    // Hen.bin'i kernel'e yaz (boş bir bölgeye)
-    var henKernelAddr = kernelBase + 0x90000;
-    kernelWrite(henKernelAddr, henData);
+    <!-- GÜVENLİK -->
+    <section class="security" id="security">
+      <div class="shield-wrap reveal">
+        <svg class="shield" viewBox="0 0 120 140" aria-hidden="true">
+          <defs>
+            <linearGradient id="sg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#5ad1ff"/>
+              <stop offset="1" stop-color="#1a5cff"/>
+            </linearGradient>
+          </defs>
+          <path class="shield-path" d="M60 6 108 24v40c0 32-21 55-48 70C33 119 12 96 12 64V24z"/>
+          <path class="shield-check" d="M38 70l15 15 30-32"/>
+        </svg>
+      </div>
+      <div class="section-head center reveal">
+        <p class="eyebrow">Güvenlik</p>
+        <h2>Verileriniz.<br><span class="grad">Yalnızca sizin.</span></h2>
+        <p class="lead">Uçtan uca şifreleme, izole uygulama alanları ve şeffaf izin yönetimi. Gizlilik bir ayar değil, temeldir.</p>
+      </div>
+      <ul class="sec-list">
+        <li class="reveal"><b>Uçtan uca şifreleme</b><span>Mesajlar ve yedekler yalnızca cihazınızda çözülür.</span></li>
+        <li class="reveal" style="--d:.1s"><b>Uygulama izolasyonu</b><span>Her uygulama kendi korumalı alanında çalışır.</span></li>
+        <li class="reveal" style="--d:.2s"><b>Şeffaf izinler</b><span>Hangi uygulamanın neye eriştiğini anında görün.</span></li>
+      </ul>
+    </section>
 
-    // 8. ROP zinciri oluştur
-    function buildROP(henAddr) {
-        var rop = [];
-        // sys_write(1, henAddr, len)
-        rop.push(popRdi & 0xFFFFFFFF, 1);
-        rop.push(popRsi & 0xFFFFFFFF, henAddr & 0xFFFFFFFF);
-        rop.push(popRdx & 0xFFFFFFFF, 0x10000);
-        rop.push(popRax & 0xFFFFFFFF, 0x201); // sys_write (9.00)
-        rop.push(syscall & 0xFFFFFFFF);
-        // sys_execve(henAddr, NULL, NULL)
-        rop.push(popRdi & 0xFFFFFFFF, henAddr & 0xFFFFFFFF);
-        rop.push(popRsi & 0xFFFFFFFF, 0);
-        rop.push(popRdx & 0xFFFFFFFF, 0);
-        rop.push(popRax & 0xFFFFFFFF, 0x3B);
-        rop.push(syscall & 0xFFFFFFFF);
-        return rop;
-    }
-    var ropChain = buildROP(henKernelAddr);
+    <!-- CTA -->
+    <section class="cta" id="download">
+      <div class="cta-glow"></div>
+      <img src="assets/logo-full.png" alt="SaatOS" class="cta-logo reveal">
+      <h2 class="reveal" style="--d:.1s">Geleceğe hazır mısınız?</h2>
+      <p class="lead reveal" style="--d:.2s">SaatOS'u bugün deneyin. Ücretsiz.</p>
+      <div class="hero-actions reveal" style="--d:.3s">
+        <a href="#download" class="btn btn-primary btn-lg" id="downloadBtn">SaatOS'u İndir</a>
+      </div>
+    </section>
+  </main>
 
-    // 9. ROP'u kernel stack'ine yaz
-    var ropKernelAddr = kernelBase + 0x95000;
-    var ropBytes = new Uint8Array(ropChain.length * 4);
-    for (var i = 0; i < ropChain.length; i++) {
-        var v = ropChain[i];
-        ropBytes[i*4] = v & 0xFF;
-        ropBytes[i*4+1] = (v>>8) & 0xFF;
-        ropBytes[i*4+2] = (v>>16) & 0xFF;
-        ropBytes[i*4+3] = (v>>24) & 0xFF;
-    }
-    kernelWrite(ropKernelAddr, ropBytes);
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="brand">
+        <img src="assets/logo.png" alt="" width="20" height="20">
+        <span>Saat<b>OS</b></span>
+      </div>
+      <p>© <span id="year"></span> SaatOS. Tüm hakları saklıdır.</p>
+    </div>
+  </footer>
 
-    // 10. Kontrolü ROP'a ver - yığın işaretçisini rop adresine ayarla
-    // Bu işlem fakeobj + ArrayBuffer ile yapılır.
-    // Gerçek exploit'te burada "return-to-ROP" gerçekleşir.
-    // Bu noktada kod kernel modunda çalışmaya başlar ve hen.bin devreye girer.
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-    // 11. Exploit tamamlandı - PS4 artık hen.bin çalıştırıyor.
-    // Tarayıcı ya donar ya da kapanır.
-})();
-</script>
+  <script src="main.js"></script>
 </body>
 </html>
